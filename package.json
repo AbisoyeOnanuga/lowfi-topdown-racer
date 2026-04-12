@@ -1,0 +1,8 @@
+{
+  "name": "lowfi-topdown-racer",
+  "private": true,
+  "description": "Browser top-down racing prototype (ES modules; needs a static server)",
+  "scripts": {
+    "start": "npx --yes serve@14 . -l 5173"
+  }
+}
