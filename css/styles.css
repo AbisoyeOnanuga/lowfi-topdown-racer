@@ -2,39 +2,115 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  background: #0a0c10;
-  color: #c8e0ff;
+  min-height: 100dvh;
+  background: #07080c;
+  color: #b8e8ff;
   font-family: "Segoe UI", system-ui, sans-serif;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-#app {
+body.race-active {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* Letterboxed 16:9 view — works in portrait (narrow) or landscape (wider track area). */
+#app.arcade-cab {
   position: relative;
-  box-shadow: 0 0 0 2px #1e3a5f, 0 8px 32px rgba(0, 0, 0, 0.6);
+  width: min(100vw - 8px, calc(100dvh * 16 / 9 - 8px));
+  height: min(100dvh - 8px, calc(100vw * 9 / 16 - 8px));
+  max-width: 100%;
+  box-shadow:
+    0 0 0 2px #1a5088,
+    0 0 24px rgba(0, 200, 255, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.65);
+}
+
+#app.arcade-cab::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.12) 2px,
+    rgba(0, 0, 0, 0.12) 3px
+  );
+  opacity: 0.35;
 }
 
 #game-canvas {
   display: block;
+  width: 100%;
+  height: 100%;
   background: #0d1117;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
 
+.rotate-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 24;
+  max-width: 88%;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: center;
+  background: rgba(8, 14, 24, 0.92);
+  border: 1px solid #3a6a9f;
+  border-radius: 8px;
+  color: #c8e4ff;
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.rotate-hint.hidden {
+  display: none;
+}
+
+.rotate-hint-dismiss {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+}
+
+@media (orientation: landscape), (min-width: 700px) {
+  .rotate-hint {
+    display: none !important;
+  }
+}
+
 .screen {
   position: absolute;
   inset: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
   padding: 1.5rem;
-  background: rgba(6, 10, 18, 0.92);
+  background: rgba(4, 8, 14, 0.94);
   backdrop-filter: blur(4px);
 }
 
@@ -42,11 +118,21 @@ body {
   display: none;
 }
 
+.arcade-eyebrow {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  color: #5de8ff;
+}
+
 h1 {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: 0.04em;
+  text-shadow: 0 0 24px rgba(80, 200, 255, 0.2);
 }
 
 h2 {
@@ -55,9 +141,54 @@ h2 {
 }
 
 .tagline {
+  margin: 0 0 0.35rem;
+  opacity: 0.7;
+  font-size: 0.88rem;
+  max-width: 26rem;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.attract-line {
   margin: 0 0 1rem;
-  opacity: 0.65;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff6ec7;
+  opacity: 0.85;
+  animation: attract-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes attract-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.setup-best {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  opacity: 0.75;
+  color: #7dffb3;
+  font-variant-numeric: tabular-nums;
+  max-width: min(280px, 90vw);
+  text-align: center;
+  line-height: 1.35;
+}
+
+.audio-mute {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 25;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.55rem;
+  opacity: 0.85;
+  pointer-events: auto;
 }
 
 label {
@@ -129,6 +260,7 @@ kbd {
 .hud {
   position: absolute;
   inset: 0;
+  z-index: 8;
   pointer-events: none;
 }
 
@@ -141,7 +273,7 @@ kbd {
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 6;
+  z-index: 14;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -314,6 +446,22 @@ kbd {
   text-align: right;
 }
 
+.results-record {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #7dffb3;
+  text-align: center;
+}
+
+.results-record.hidden {
+  display: none;
+}
+
+.results-table tr.results-you td {
+  background: rgba(30, 80, 120, 0.25);
+}
+
 .hud-wait {
   position: absolute;
   top: 50%;
@@ -334,11 +482,125 @@ kbd {
   display: none;
 }
 
+.hud.touch-mode .hud-hint {
+  bottom: 96px;
+  max-width: min(85%, 18rem);
+}
+
+/* Keep minimap above thumb controls (bottom clusters are ~88–120px). */
+.hud.touch-mode .hud-radar {
+  bottom: 104px;
+}
+
 .hud-hint {
   position: absolute;
   bottom: 8px;
   left: 8px;
   font-size: 0.65rem;
   opacity: 0.45;
-  max-width: 70%;
+  max-width: min(70%, 16rem);
+}
+
+.hud-hint-touch.hidden,
+.hud-hint-keys.hidden {
+  display: none;
+}
+
+.hud-quit {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 16;
+  pointer-events: auto;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.6rem;
+  opacity: 0.88;
+}
+
+.touch-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 22;
+  display: none;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 12px;
+  padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+  pointer-events: auto;
+  touch-action: none;
+  background: linear-gradient(
+    0deg,
+    rgba(4, 8, 14, 0.82) 0%,
+    rgba(4, 8, 14, 0.2) 100%
+  );
+}
+
+.touch-controls.active {
+  display: flex;
+}
+
+@media (pointer: fine) and (min-width: 900px) {
+  .touch-controls.active {
+    display: none;
+  }
+}
+
+.touch-cluster {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+}
+
+.touch-cluster--steer {
+  flex: 1;
+  justify-content: flex-start;
+}
+
+.touch-cluster--pedals {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.touch-btn {
+  min-width: 3.75rem;
+  min-height: 3.25rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  border-radius: 10px;
+  border: 1px solid #4a7aaa;
+  background: rgba(20, 36, 56, 0.88);
+  color: #e8f4ff;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.touch-btn:active,
+.touch-btn.touch-down {
+  background: rgba(40, 70, 100, 0.95);
+}
+
+.touch-pedal.touch-gas {
+  border-color: #4a9f6a;
+  color: #b8ffd0;
+}
+
+.touch-pedal {
+  min-width: 4.25rem;
+  min-height: 4rem;
+}
+
+@media (max-width: 420px) {
+  .touch-btn {
+    min-width: 3.25rem;
+    min-height: 2.85rem;
+  }
+  .touch-pedal {
+    min-width: 3.75rem;
+    min-height: 3.5rem;
+  }
 }

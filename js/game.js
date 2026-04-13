@@ -8,10 +8,20 @@ import {
   pointAtArc,
   trackLength,
 } from "./track.js";
-import { offTrackFactors } from "./physics.js";
+import { offTrackFactors, offTrackSeverity } from "./physics.js";
 import { getVehicle } from "./vehicles.js";
 import { drawCar, drawMinimap, drawWorld } from "./render.js";
 import { formatRaceTime } from "./timeutil.js";
+
+/** @param {number} n 1-based place */
+function ordinalPlace(n) {
+  const j = n % 10;
+  const k = n % 100;
+  if (j === 1 && k !== 11) return `${n}ST`;
+  if (j === 2 && k !== 12) return `${n}ND`;
+  if (j === 3 && k !== 13) return `${n}RD`;
+  return `${n}TH`;
+}
 
 /** @typedef {{ speedMul: number, aggression: number }} AiProfile */
 
@@ -109,6 +119,11 @@ export class GameSession {
     requestAnimationFrame((t) => this._loop(t));
   }
 
+  /** @param {object} state */
+  _emit(state) {
+    this.onUpdate({ ...state, phase: this._phase });
+  }
+
   _updateView() {
     const b = getWorldBounds(this.track);
     const bw = b.maxX - b.minX;
@@ -125,6 +140,11 @@ export class GameSession {
 
   stop() {
     this._running = false;
+  }
+
+  /** Call after canvas pixel size changes (responsive / DPR). */
+  resize() {
+    this._updateView();
   }
 
   _buildCars() {
@@ -165,7 +185,7 @@ export class GameSession {
       this._preT += dt;
       if (this._preT >= LIGHTS_GO) {
         this._phase = "racing";
-        this.onUpdate({
+        this._emit({
           lights: { active: false, redsOn: 0, showGo: false },
           hud: this._hudPayload(),
         });
@@ -201,28 +221,32 @@ export class GameSession {
       redsOn = 0;
       showGo = true;
     }
-    this.onUpdate({
+    this._emit({
       lights: { active: true, redsOn, showGo },
       hud: this._hudPayload(),
     });
   }
 
   _hudPayload() {
+    const track = this.track;
     const playerLaps = this.lapCount[0] || 0;
     const curLap = Math.min(playerLaps + 1, this.lapsTotal);
     const playerDone = this.finishTime[0] != null;
     const allDone = this.cars.every((_, i) => this.finishTime[i] != null);
     const speedKmh = Math.round(Math.abs(this.cars[0].speed) * 0.42);
+    const pl = closestOnTrack(track, this.cars[0].x, this.cars[0].y);
+    const offTrack = offTrackSeverity(track, pl.lateral);
     const t =
       this._phase === "racing" || this._phase === "done"
         ? this.raceTime
         : 0;
     return {
       speed: speedKmh,
+      offTrack,
       lapLabel: playerDone
         ? `Finished · ${this.lapsTotal} laps`
         : `${curLap} / ${this.lapsTotal}`,
-      posLabel: `${this.playerPlace} / ${this.cars.length}`,
+      posLabel: `${ordinalPlace(this.playerPlace)} / ${this.cars.length}`,
       timeLabel: formatRaceTime(t),
       waitingForField:
         this._phase === "racing" && playerDone && !allDone,
@@ -335,7 +359,7 @@ export class GameSession {
   }
 
   _emitHud() {
-    this.onUpdate({
+    this._emit({
       finished: this.finished,
       lights: { active: false, redsOn: 0, showGo: false },
       hud: this._hudPayload(),

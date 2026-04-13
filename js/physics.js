@@ -4,6 +4,20 @@
  * @param {number} lateral signed lateral offset from centerline
  * @param {number} dt frame delta seconds
  */
+/**
+ * 0 on asphalt, 1 at max off-track distance used by grip decay (matches `offTrackFactors`).
+ * @param {{ width: number }} track
+ * @param {number} lateral
+ */
+export function offTrackSeverity(track, lateral) {
+  const halfRoad = track.width * 0.5;
+  const inner = halfRoad - 9;
+  const absLat = Math.abs(lateral);
+  if (absLat <= inner) return 0;
+  const past = absLat - inner;
+  return Math.min(past / 52, 1);
+}
+
 export function offTrackFactors(track, lateral, dt) {
   const halfRoad = track.width * 0.5;
   const inner = halfRoad - 9;

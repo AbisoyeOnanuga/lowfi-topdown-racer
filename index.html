@@ -2,13 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07080c" />
   <title>Low-fi Top-down Racer</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <div id="app">
+  <div id="app" class="arcade-cab">
     <canvas id="game-canvas" width="960" height="540"></canvas>
+
+    <p id="rotate-hint" class="rotate-hint hidden" role="status">
+      Tip: landscape fits more track on screen. Works in portrait too.
+      <button type="button" id="rotate-hint-dismiss" class="rotate-hint-dismiss">OK</button>
+    </p>
 
     <div id="start-sequence" class="start-sequence hidden" aria-live="polite">
       <div class="start-lights" role="presentation">
@@ -54,12 +60,29 @@
         <div class="hud-radar-caption">Overview</div>
       </div>
       <div id="hud-wait" class="hud-wait hidden" role="status">Waiting for the field to finish…</div>
-      <div class="hud-hint">Arrows / WASD — steer · Z / Space — accel · X — brake</div>
+      <button type="button" id="hud-quit" class="hud-quit">Menu</button>
+      <div class="hud-hint">
+        <span class="hud-hint-keys">Arrows / WASD — steer · Z / Space — accel · X — brake</span>
+        <span class="hud-hint-touch hidden">Steer · gas · brake — on-screen (bottom)</span>
+      </div>
+    </div>
+
+    <div id="touch-controls" class="touch-controls" aria-hidden="true">
+      <div class="touch-cluster touch-cluster--steer">
+        <button type="button" class="touch-btn" data-touch="left" aria-label="Steer left">◀</button>
+        <button type="button" class="touch-btn" data-touch="right" aria-label="Steer right">▶</button>
+      </div>
+      <div class="touch-cluster touch-cluster--pedals">
+        <button type="button" class="touch-btn touch-pedal" data-touch="brake" aria-label="Brake">B</button>
+        <button type="button" class="touch-btn touch-pedal touch-gas" data-touch="gas" aria-label="Accelerate">A</button>
+      </div>
     </div>
 
     <div id="menu-main" class="screen">
+      <p class="arcade-eyebrow" aria-hidden="true">Top-down sprint · code &amp; canvas</p>
       <h1>Low-fi Top-down Racer</h1>
-      <p class="tagline">Prototype — vehicle feel, racing lines, track projection, AI pacing</p>
+      <p class="tagline">Arcade-style prototype: readable track, rubber AI, local records — no asset pipeline.</p>
+      <p class="attract-line" aria-hidden="true">Insert skill · press Race</p>
       <button type="button" id="btn-start">Race</button>
       <button type="button" id="btn-how">Controls</button>
     </div>
@@ -82,6 +105,7 @@
       <label>Laps
         <input type="number" id="input-laps" min="1" max="9" value="3" />
       </label>
+      <p id="setup-best" class="setup-best"></p>
       <div class="setup-actions">
         <button type="button" id="btn-back-main">Back</button>
         <button type="button" id="btn-go-race" class="primary">Start race</button>
@@ -94,13 +118,15 @@
         <li><kbd>↑</kbd> <kbd>↓</kbd> or <kbd>W</kbd> <kbd>S</kbd> — accelerate / brake</li>
         <li><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> — steer</li>
         <li>Wait for the five red lights, then go when they switch off and “GO” appears.</li>
-        <li><kbd>Esc</kbd> — quit to menu</li>
+        <li><kbd>Esc</kbd> or <strong>Menu</strong> (in-race) — quit to menu</li>
+        <li>Phones: on-screen steer + A (gas) / B (brake) when racing.</li>
       </ul>
       <button type="button" id="btn-how-back">Back</button>
     </div>
 
     <div id="menu-results" class="screen hidden">
       <h2 id="results-title">Race finished</h2>
+      <p id="results-record" class="results-record hidden" role="status"></p>
       <table class="results-table" id="results-table">
         <thead>
           <tr><th>Pos</th><th>Driver</th><th>Time</th></tr>
@@ -109,6 +135,8 @@
       </table>
       <button type="button" id="btn-results-menu">Menu</button>
     </div>
+
+    <button type="button" id="btn-audio-mute" class="audio-mute" aria-pressed="false" title="Toggle synthesized audio">Audio: on</button>
   </div>
 
   <script type="module" src="js/main.js"></script>
