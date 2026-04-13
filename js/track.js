@@ -21,44 +21,53 @@ export function ellipsePoints(cx, cy, rx, ry, segments) {
 }
 
 /**
- * Stadium: two straights (length `straightLen`) connected by semicircular ends of radius `R`.
- * @param {number} arcSeg segments per semicircle
- * @param {number} nStraight segments per straight
+ * Linearly subdivide a closed polyline for smoother mesh (no self-intersection if waypoints are clean).
+ * @param {number} nEach segments per original edge (>=1)
  */
-export function stadiumPoints(cx, cy, straightLen, R, arcSeg, nStraight) {
-  const S = straightLen;
-  const pts = [];
-  const ns = Math.max(1, nStraight | 0);
-  const arc = Math.max(2, arcSeg | 0);
-
-  for (let k = 0; k <= ns; k++) {
-    pts.push({ x: cx - S / 2 + (k / ns) * S, y: cy + R });
-  }
-  for (let j = 1; j <= arc; j++) {
-    const a = Math.PI / 2 - (j / arc) * Math.PI;
-    pts.push({
-      x: cx + S / 2 + R * Math.cos(a),
-      y: cy + R * Math.sin(a),
-    });
-  }
-  for (let k = 1; k <= ns; k++) {
-    pts.push({ x: cx + S / 2 - (k / ns) * S, y: cy - R });
-  }
-  for (let j = 1; j <= arc; j++) {
-    const a = -Math.PI / 2 + (j / arc) * Math.PI;
-    pts.push({
-      x: cx - S / 2 + R * Math.cos(a),
-      y: cy + R * Math.sin(a),
-    });
-  }
-  if (pts.length >= 2) {
-    const a = pts[0];
-    const b = pts[pts.length - 1];
-    if (Math.hypot(b.x - a.x, b.y - a.y) < 2) {
-      pts.pop();
+function subdivideClosed(waypoints, nEach) {
+  const n = waypoints.length;
+  const se = Math.max(1, nEach | 0);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = waypoints[i];
+    const b = waypoints[(i + 1) % n];
+    for (let k = 0; k < se; k++) {
+      const t = k / se;
+      out.push({
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+      });
     }
   }
-  return pts;
+  return out;
+}
+
+/**
+ * F1-inspired GP loop: long start straight, fast right, esses, back straight, hairpin, return.
+ * Large world coordinates (~1500×800 span) so camera zoom leaves margin; CCW, non-crossing hull.
+ */
+function ridgewayGranPrix() {
+  const w = [
+    { x: 520, y: 920 },
+    { x: 780, y: 920 },
+    { x: 1040, y: 920 },
+    { x: 1320, y: 920 },
+    { x: 1560, y: 905 },
+    { x: 1720, y: 820 },
+    { x: 1800, y: 680 },
+    { x: 1820, y: 520 },
+    { x: 1760, y: 380 },
+    { x: 1620, y: 280 },
+    { x: 1420, y: 220 },
+    { x: 1160, y: 200 },
+    { x: 880, y: 210 },
+    { x: 620, y: 260 },
+    { x: 420, y: 360 },
+    { x: 320, y: 500 },
+    { x: 340, y: 660 },
+    { x: 420, y: 800 },
+  ];
+  return subdivideClosed(w, 5);
 }
 
 export const TRACKS = [
@@ -76,9 +85,10 @@ export const TRACKS = [
   },
   {
     id: "technical",
-    name: "Ridge Circuit",
-    width: 142,
-    points: loop(stadiumPoints(720, 405, 520, 125, 16, 8)),
+    name: "Ridgeway Circuit",
+    width: 136,
+    boundsPad: 140,
+    points: loop(ridgewayGranPrix()),
   },
 ];
 
@@ -214,13 +224,16 @@ export function buildEdges(track) {
   return { left, right };
 }
 
-const BOUNDS_PAD = 40;
+const DEFAULT_BOUNDS_PAD = 96;
 
 /**
  * Axis-aligned bounds from road edges plus padding (for camera / minimap).
+ * Optional `track.boundsPad` for long circuits that need extra framing margin.
  * @param {typeof TRACKS[number]} track
  */
 export function getWorldBounds(track) {
+  const pad =
+    typeof track.boundsPad === "number" ? track.boundsPad : DEFAULT_BOUNDS_PAD;
   const { left, right } = buildEdges(track);
   let minX = Infinity;
   let minY = Infinity;
@@ -239,9 +252,9 @@ export function getWorldBounds(track) {
     maxY = Math.max(maxY, p.y);
   }
   return {
-    minX: minX - BOUNDS_PAD,
-    minY: minY - BOUNDS_PAD,
-    maxX: maxX + BOUNDS_PAD,
-    maxY: maxY + BOUNDS_PAD,
+    minX: minX - pad,
+    minY: minY - pad,
+    maxX: maxX + pad,
+    maxY: maxY + pad,
   };
 }

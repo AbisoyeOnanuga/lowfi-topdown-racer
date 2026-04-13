@@ -16,9 +16,9 @@ import { drawCar, drawMinimap, drawWorld } from "./render.js";
 
 /** @type {Record<string, AiProfile>} */
 export const DIFFICULTY = {
-  easy: { speedMul: 0.76, aggression: 0.72 },
-  normal: { speedMul: 0.92, aggression: 0.9 },
-  hard: { speedMul: 1.06, aggression: 1.05 },
+  easy: { speedMul: 0.82, aggression: 0.8 },
+  normal: { speedMul: 0.98, aggression: 0.96 },
+  hard: { speedMul: 1.1, aggression: 1.08 },
 };
 
 const AI_NAMES = ["Vector", "Raster", "Shader"];
@@ -99,7 +99,7 @@ export class GameSession {
     const bh = b.maxY - b.minY;
     const w = this.canvas.width;
     const h = this.canvas.height;
-    const scale = Math.min(w / bw, h / bh) * 0.98;
+    const scale = Math.min(w / bw, h / bh) * 0.93;
     this._view = {
       scale,
       centerX: (b.minX + b.maxX) / 2,
