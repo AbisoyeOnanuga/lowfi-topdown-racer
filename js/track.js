@@ -1,5 +1,6 @@
 /**
- * Centerline polylines (closed loops). Width in world units.
+ * Centerline polylines (closed loops). Width = full road width in world units.
+ * Tracks use smooth sampling (arcs, Catmull–Rom, polar) — no overlapping geometry.
  */
 
 function loop(points) {
@@ -7,12 +8,12 @@ function loop(points) {
 }
 
 /**
- * Closed CCW ellipse as a polyline (first point not duplicated at end).
- * @param {number} segments vertices around the loop
+ * Closed CCW ellipse, first point at top.
+ * @param {number} segments vertex count around the loop (high = smoother)
  */
 export function ellipsePoints(cx, cy, rx, ry, segments) {
   const pts = [];
-  const n = Math.max(8, segments | 0);
+  const n = Math.max(24, segments | 0);
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 - Math.PI / 2;
     pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
@@ -21,74 +22,177 @@ export function ellipsePoints(cx, cy, rx, ry, segments) {
 }
 
 /**
- * Linearly subdivide a closed polyline for smoother mesh (no self-intersection if waypoints are clean).
- * @param {number} nEach segments per original edge (>=1)
+ * One quadrant of a circle (y-down screen): angle 0 = east, π/2 = south.
+ * @param {number} a0 start angle (rad)
+ * @param {number} a1 end angle (rad)
  */
-function subdivideClosed(waypoints, nEach) {
-  const n = waypoints.length;
-  const se = Math.max(1, nEach | 0);
+function arcSamples(cx, cy, r, a0, a1, n) {
+  const pts = [];
+  const steps = Math.max(6, n | 0);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const a = a0 + t * (a1 - a0);
+    pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+  }
+  return pts;
+}
+
+/**
+ * Rounded rectangle centerline, CCW from bottom-left of inner straight (after BL fillet).
+ * Large corner radius + dense arc facets = smooth bends.
+ */
+function roundedRectLoop(cx, cy, halfW, halfH, cornerR, segStraight, segCorner) {
+  const x0 = cx - halfW;
+  const x1 = cx + halfW;
+  const y0 = cy - halfH;
+  const y1 = cy + halfH;
+  const r = Math.min(cornerR, halfW * 0.95, halfH * 0.95);
+  const ss = Math.max(4, segStraight | 0);
+  const sc = Math.max(8, segCorner | 0);
+  const pts = [];
+
+  const xbl = x0 + r;
+  const xbr = x1 - r;
+
+  for (let i = 0; i <= ss; i++) {
+    const t = i / ss;
+    pts.push({ x: xbl + t * (xbr - xbl), y: y1 });
+  }
+  const cbr = { x: xbr, y: y1 - r };
+  pts.push(...arcSamples(cbr.x, cbr.y, r, Math.PI / 2, 0, sc).slice(1));
+
+  for (let i = 1; i <= ss; i++) {
+    const t = i / ss;
+    pts.push({ x: x1, y: y1 - r - t * (y1 - r - (y0 + r)) });
+  }
+  const ctr = { x: x1 - r, y: y0 + r };
+  pts.push(...arcSamples(ctr.x, ctr.y, r, 0, -Math.PI / 2, sc).slice(1));
+
+  for (let i = 1; i <= ss; i++) {
+    const t = i / ss;
+    pts.push({ x: xbr - t * (xbr - xbl), y: y0 });
+  }
+  const ctl = { x: xbl, y: y0 + r };
+  pts.push(...arcSamples(ctl.x, ctl.y, r, -Math.PI / 2, -Math.PI, sc).slice(1));
+
+  for (let i = 1; i <= ss; i++) {
+    const t = i / ss;
+    pts.push({ x: x0, y: y0 + r + t * (y1 - r - (y0 + r)) });
+  }
+  const cbl = { x: x0 + r, y: y1 - r };
+  pts.push(...arcSamples(cbl.x, cbl.y, r, Math.PI, Math.PI / 2, sc).slice(1));
+
+  if (pts.length > 1) {
+    const a = pts[0];
+    const b = pts[pts.length - 1];
+    if (Math.hypot(a.x - b.x, a.y - b.y) < 0.5) {
+      pts.pop();
+    }
+  }
+  return pts;
+}
+
+/**
+ * Smooth polar loop: r = baseR + amp * sin(waves * θ). No crossings when amp < baseR / (waves+1) roughly.
+ */
+function polarWavyLoop(cx, cy, baseR, amp, waves, nPts) {
+  const n = Math.max(64, nPts | 0);
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const th = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const rr = baseR + amp * Math.sin(waves * th);
+    pts.push({
+      x: cx + Math.cos(th) * rr,
+      y: cy + Math.sin(th) * rr,
+    });
+  }
+  return pts;
+}
+
+/**
+ * Catmull–Rom segment between p1→p2 with neighbours p0,p3. t ∈ [0,1].
+ */
+function catmull(p0, p1, p2, p3, t) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return {
+    x:
+      0.5 *
+      (2 * p1.x +
+        (-p0.x + p2.x) * t +
+        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y:
+      0.5 *
+      (2 * p1.y +
+        (-p0.y + p2.y) * t +
+        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+  };
+}
+
+/**
+ * Closed Catmull–Rom spline through control points (no duplicate closing vertex).
+ * @param {number} samplesPerEdge samples along each control edge (high = smoother)
+ */
+export function catmullRomClosed(controls, samplesPerEdge) {
+  const n = controls.length;
+  const spe = Math.max(8, samplesPerEdge | 0);
   const out = [];
   for (let i = 0; i < n; i++) {
-    const a = waypoints[i];
-    const b = waypoints[(i + 1) % n];
-    for (let k = 0; k < se; k++) {
-      const t = k / se;
-      out.push({
-        x: a.x + (b.x - a.x) * t,
-        y: a.y + (b.y - a.y) * t,
-      });
+    const p0 = controls[(i - 1 + n) % n];
+    const p1 = controls[i];
+    const p2 = controls[(i + 1) % n];
+    const p3 = controls[(i + 2) % n];
+    for (let k = 0; k < spe; k++) {
+      const t = k / spe;
+      out.push(catmull(p0, p1, p2, p3, t));
     }
   }
   return out;
 }
 
-/**
- * F1-inspired GP loop: long start straight, fast right, esses, back straight, hairpin, return.
- * Large world coordinates (~1500×800 span) so camera zoom leaves margin; CCW, non-crossing hull.
- */
-function ridgewayGranPrix() {
-  const w = [
-    { x: 520, y: 920 },
-    { x: 780, y: 920 },
-    { x: 1040, y: 920 },
-    { x: 1320, y: 920 },
-    { x: 1560, y: 905 },
-    { x: 1720, y: 820 },
-    { x: 1800, y: 680 },
-    { x: 1820, y: 520 },
-    { x: 1760, y: 380 },
-    { x: 1620, y: 280 },
-    { x: 1420, y: 220 },
-    { x: 1160, y: 200 },
-    { x: 880, y: 210 },
-    { x: 620, y: 260 },
-    { x: 420, y: 360 },
-    { x: 320, y: 500 },
-    { x: 340, y: 660 },
-    { x: 420, y: 800 },
+/** Long, flowing GP: smooth spline through sparse hull — no sharp kinks */
+function ridgewaySmooth() {
+  const hull = [
+    { x: 480, y: 900 },
+    { x: 820, y: 920 },
+    { x: 1180, y: 880 },
+    { x: 1500, y: 760 },
+    { x: 1680, y: 560 },
+    { x: 1720, y: 340 },
+    { x: 1540, y: 200 },
+    { x: 1180, y: 160 },
+    { x: 760, y: 180 },
+    { x: 420, y: 320 },
+    { x: 300, y: 520 },
+    { x: 360, y: 740 },
+    { x: 480, y: 900 },
   ];
-  return subdivideClosed(w, 5);
+  return catmullRomClosed(hull.slice(0, -1), 26);
 }
 
 export const TRACKS = [
   {
     id: "oval",
-    name: "Training Oval",
+    name: "Arena Circuit",
     width: 152,
-    points: loop(ellipsePoints(720, 405, 430, 268, 28)),
+    points: loop(
+      roundedRectLoop(720, 405, 410, 250, 118, 14, 18)
+    ),
   },
   {
     id: "switchback",
-    name: "Speedway",
+    name: "Ribbon Course",
     width: 148,
-    points: loop(ellipsePoints(720, 405, 520, 218, 28)),
+    points: loop(polarWavyLoop(720, 405, 340, 105, 4, 160)),
   },
   {
     id: "technical",
     name: "Ridgeway Circuit",
     width: 136,
     boundsPad: 140,
-    points: loop(ridgewayGranPrix()),
+    points: loop(ridgewaySmooth()),
   },
 ];
 
