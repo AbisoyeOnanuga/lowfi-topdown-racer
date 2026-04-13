@@ -11,17 +11,23 @@ import {
 import { offTrackFactors } from "./physics.js";
 import { getVehicle } from "./vehicles.js";
 import { drawCar, drawMinimap, drawWorld } from "./render.js";
+import { formatRaceTime } from "./timeutil.js";
 
 /** @typedef {{ speedMul: number, aggression: number }} AiProfile */
 
 /** @type {Record<string, AiProfile>} */
 export const DIFFICULTY = {
-  easy: { speedMul: 0.82, aggression: 0.8 },
-  normal: { speedMul: 0.98, aggression: 0.96 },
-  hard: { speedMul: 1.1, aggression: 1.08 },
+  easy: { speedMul: 0.86, aggression: 0.84 },
+  normal: { speedMul: 1.02, aggression: 0.99 },
+  hard: { speedMul: 1.14, aggression: 1.12 },
 };
 
 const AI_NAMES = ["Vector", "Raster", "Shader"];
+
+/** Pre-race lights: sequential reds, hold, blackout + GO, then racing (seconds). */
+const LIGHTS_SEQ = 0.75;
+const LIGHTS_HOLD = 2.2;
+const LIGHTS_GO = 2.65;
 
 export class GameSession {
   /**
@@ -33,8 +39,8 @@ export class GameSession {
    * @param {string} opts.trackId
    * @param {keyof typeof DIFFICULTY} opts.difficulty
    * @param {number} opts.laps
-   * @param {(state: { finished: boolean }) => void} opts.onUpdate
-   * @param {(results: { name: string; place: number }[]) => void} opts.onFinish
+   * @param {(state: object) => void} opts.onUpdate
+   * @param {(results: { name: string; place: number; time: number | null }[]) => void} opts.onFinish
    */
   constructor(opts) {
     this.canvas = opts.canvas;
@@ -50,17 +56,20 @@ export class GameSession {
     this.ctx = this.canvas.getContext("2d");
     /** @type {Car[]} */
     this.cars = [];
-    /** @type {number | undefined} */
-    this._prevArc = undefined;
     /** @type {number[]} */
     this.lapCount = [];
     /** @type {(number | undefined)[]} */
     this.prevArc = [];
+    /** @type {(number | null)[]} */
+    this.finishTime = [];
     this.finished = false;
     this.playerPlace = 1;
     this.raceTime = 0;
     this._lastTime = 0;
     this._running = false;
+    /** @type {'lights' | 'racing' | 'done'} */
+    this._phase = "lights";
+    this._preT = 0;
     /** @type {{ scale: number, centerX: number, centerY: number }} */
     this._view = { scale: 1, centerX: 0, centerY: 0 };
   }
@@ -79,6 +88,7 @@ export class GameSession {
       this.cars[i].angle = ang;
       this.cars[i].speed = 0;
       this.lapCount[i] = 0;
+      this.finishTime[i] = null;
       this.prevArc[i] = arcPosition(
         this.track,
         closestOnTrack(this.track, this.cars[i].x, this.cars[i].y).segIndex,
@@ -87,9 +97,12 @@ export class GameSession {
     }
     this.finished = false;
     this.raceTime = 0;
+    this._phase = "lights";
+    this._preT = 0;
     this._lastTime = performance.now();
     this._running = true;
     this._updateView();
+    this._emitLights();
     requestAnimationFrame((t) => this._loop(t));
   }
 
@@ -144,12 +157,94 @@ export class GameSession {
     if (!this._running) return;
     const dt = Math.min(0.05, (now - this._lastTime) / 1000);
     this._lastTime = now;
-    this.raceTime += dt;
-    this._step(dt);
+
+    if (this._phase === "lights") {
+      this._preT += dt;
+      if (this._preT >= LIGHTS_GO) {
+        this._phase = "racing";
+        this.onUpdate({
+          lights: { active: false, redsOn: 0, showGo: false },
+          hud: this._hudPayload(),
+        });
+      } else {
+        this._emitLights();
+      }
+      this._render();
+      if (this._running) requestAnimationFrame((t) => this._loop(t));
+      return;
+    }
+
+    if (this._phase === "racing") {
+      this.raceTime += dt;
+      const raceEnded = this._step(dt);
+      if (!raceEnded) {
+        this._emitHud();
+      }
+    }
+
     this._render();
     if (this._running) requestAnimationFrame((t) => this._loop(t));
   }
 
+  _emitLights() {
+    const t = this._preT;
+    let redsOn = 0;
+    let showGo = false;
+    if (t < LIGHTS_SEQ) {
+      redsOn = Math.min(5, Math.ceil(t / 0.15));
+    } else if (t < LIGHTS_HOLD) {
+      redsOn = 5;
+    } else {
+      redsOn = 0;
+      showGo = true;
+    }
+    this.onUpdate({
+      lights: { active: true, redsOn, showGo },
+      hud: this._hudPayload(),
+    });
+  }
+
+  _hudPayload() {
+    const playerLaps = this.lapCount[0] || 0;
+    const curLap = Math.min(playerLaps + 1, this.lapsTotal);
+    const speedKmh = Math.round(Math.abs(this.cars[0].speed) * 0.42);
+    const t =
+      this._phase === "racing" || this._phase === "done"
+        ? this.raceTime
+        : 0;
+    return {
+      speed: speedKmh,
+      lapLabel: `${curLap} / ${this.lapsTotal}`,
+      posLabel: `${this.playerPlace} / ${this.cars.length}`,
+      timeLabel: formatRaceTime(t),
+      leaderboard: this._leaderboardRows(),
+    };
+  }
+
+  _leaderboardRows() {
+    const track = this.track;
+    const total = trackLength(track);
+    const rows = this.cars.map((c, i) => {
+      const cl = closestOnTrack(track, c.x, c.y);
+      const s = arcPosition(track, cl.segIndex, cl.t);
+      return {
+        name: c.name,
+        laps: this.lapCount[i] || 0,
+        progress: (this.lapCount[i] || 0) * total + s,
+      };
+    });
+    rows.sort((a, b) => b.progress - a.progress);
+    return rows.map((r, i) => ({
+      place: i + 1,
+      name: r.name,
+      laps: r.laps,
+      lapsTotal: this.lapsTotal,
+    }));
+  }
+
+  /**
+   * @returns {boolean} true if race just finished (player crossed line on final lap)
+   */
   _step(dt) {
     const track = this.track;
 
@@ -184,36 +279,38 @@ export class GameSession {
       const prev = this.prevArc[i];
       if (prev !== undefined && prev > total * 0.72 && s < total * 0.28) {
         this.lapCount[i] = (this.lapCount[i] || 0) + 1;
+        if (
+          this.lapCount[i] >= this.lapsTotal &&
+          this.finishTime[i] == null
+        ) {
+          this.finishTime[i] = this.raceTime;
+        }
       }
       this.prevArc[i] = s;
     }
 
     this._updatePlaces();
-    const player = this.cars[0];
     const playerLaps = this.lapCount[0] || 0;
     if (!this.finished && playerLaps >= this.lapsTotal) {
       this.finished = true;
+      this._phase = "done";
       this._running = false;
+      if (this.finishTime[0] == null) {
+        this.finishTime[0] = this.raceTime;
+      }
       const results = this._buildResults();
       this._emitHud();
       this.onFinish(results);
-      return;
+      return true;
     }
-
-    this._emitHud();
+    return false;
   }
 
   _emitHud() {
-    const playerLaps = this.lapCount[0] || 0;
-    const curLap = Math.min(playerLaps + 1, this.lapsTotal);
-    const speedKmh = Math.round(Math.abs(this.cars[0].speed) * 0.42);
     this.onUpdate({
       finished: this.finished,
-      hud: {
-        speed: speedKmh,
-        lapLabel: `${curLap} / ${this.lapsTotal}`,
-        posLabel: `${this.playerPlace} / ${this.cars.length}`,
-      },
+      lights: { active: false, redsOn: 0, showGo: false },
+      hud: this._hudPayload(),
     });
   }
 
@@ -241,13 +338,21 @@ export class GameSession {
       const s = arcPosition(track, cl.segIndex, cl.t);
       return {
         name: car.name,
+        time: this.finishTime[i],
         progress: (this.lapCount[i] || 0) * total + s,
       };
     });
-    rows.sort((a, b) => b.progress - a.progress);
-    return rows.map((r, place) => ({
+    const done = rows
+      .filter((r) => r.time != null)
+      .sort((a, b) => (a.time ?? 0) - (b.time ?? 0));
+    const notDone = rows
+      .filter((r) => r.time == null)
+      .sort((a, b) => b.progress - a.progress);
+    const ordered = [...done, ...notDone];
+    return ordered.map((r, i) => ({
       name: r.name,
-      place: place + 1,
+      place: i + 1,
+      time: r.time,
     }));
   }
 

@@ -2,6 +2,7 @@ import { createInput } from "./input.js";
 import { GameSession } from "./game.js";
 import { TRACKS } from "./track.js";
 import { VEHICLES } from "./vehicles.js";
+import { formatRaceTime } from "./timeutil.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -15,6 +16,9 @@ const screens = {
 const hud = el("hud");
 const canvas = el("game-canvas");
 const minimap = el("minimap");
+const startSeq = el("start-sequence");
+const startGo = el("start-go");
+const lightEls = () => [...document.querySelectorAll(".start-lights .light")];
 
 const input = createInput();
 input.attach();
@@ -24,6 +28,14 @@ function showScreen(name) {
   if (name && screens[name]) screens[name].classList.remove("hidden");
   if (name === "main" || name === "setup" || name === "how" || name === "results") {
     hud.classList.add("hidden");
+  }
+}
+
+function hideStartSequence() {
+  startSeq.classList.add("hidden");
+  startGo.classList.add("hidden");
+  for (const L of lightEls()) {
+    L.classList.remove("on");
   }
 }
 
@@ -54,6 +66,40 @@ function bindHud(data) {
   el("hud-speed").textContent = String(data.hud.speed);
   el("hud-lap").textContent = data.hud.lapLabel;
   el("hud-pos").textContent = data.hud.posLabel;
+  const timeEl = el("hud-time");
+  if (timeEl && data.hud.timeLabel != null) {
+    timeEl.textContent = data.hud.timeLabel;
+  }
+  const body = el("hud-lb-body");
+  if (body && data.hud.leaderboard) {
+    body.innerHTML = "";
+    for (const r of data.hud.leaderboard) {
+      const tr = document.createElement("tr");
+      const short =
+        r.name.length > 9 ? `${r.name.slice(0, 8)}…` : r.name;
+      tr.innerHTML = `<td>${r.place}</td><td title="${r.name}">${short}</td><td>${r.laps}/${r.lapsTotal}</td>`;
+      body.appendChild(tr);
+    }
+  }
+}
+
+function bindLights(lights) {
+  if (!lights) return;
+  if (!lights.active) {
+    hideStartSequence();
+    return;
+  }
+  startSeq.classList.remove("hidden");
+  const reds = lights.redsOn ?? 0;
+  const list = lightEls();
+  for (let i = 0; i < list.length; i++) {
+    list[i].classList.toggle("on", i < reds);
+  }
+  if (lights.showGo) {
+    startGo.classList.remove("hidden");
+  } else {
+    startGo.classList.add("hidden");
+  }
 }
 
 function startRace() {
@@ -64,6 +110,9 @@ function startRace() {
 
   Object.values(screens).forEach((s) => s.classList.add("hidden"));
   hud.classList.remove("hidden");
+  startSeq.classList.remove("hidden");
+  for (const L of lightEls()) L.classList.remove("on");
+  startGo.classList.add("hidden");
 
   session = new GameSession({
     canvas,
@@ -75,15 +124,19 @@ function startRace() {
     laps,
     onUpdate: (state) => {
       bindHud(state);
+      if (state.lights) bindLights(state.lights);
     },
     onFinish: (results) => {
       session = null;
-      const list = el("results-list");
-      list.innerHTML = "";
+      hideStartSequence();
+      const tbody = el("results-body");
+      tbody.innerHTML = "";
       for (const r of results) {
-        const li = document.createElement("li");
-        li.textContent = `${r.place}. ${r.name}`;
-        list.appendChild(li);
+        const tr = document.createElement("tr");
+        const timeStr =
+          r.time != null ? formatRaceTime(r.time) : "—";
+        tr.innerHTML = `<td>${r.place}</td><td>${r.name}</td><td>${timeStr}</td>`;
+        tbody.appendChild(tr);
       }
       el("results-title").textContent = "Results";
       hud.classList.add("hidden");
@@ -100,6 +153,7 @@ function onKeyDown(e) {
   if (e.code === "Escape" && session) {
     session.stop();
     session = null;
+    hideStartSequence();
     hud.classList.add("hidden");
     showScreen("main");
   }

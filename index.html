@@ -10,12 +10,27 @@
   <div id="app">
     <canvas id="game-canvas" width="960" height="540"></canvas>
 
+    <div id="start-sequence" class="start-sequence hidden" aria-live="polite">
+      <div class="start-lights" role="presentation">
+        <span class="light" data-i="0"></span>
+        <span class="light" data-i="1"></span>
+        <span class="light" data-i="2"></span>
+        <span class="light" data-i="3"></span>
+        <span class="light" data-i="4"></span>
+      </div>
+      <div id="start-go" class="start-go hidden">GO</div>
+    </div>
+
     <div id="hud" class="hud hidden">
       <div class="hud-top">
         <div class="hud-block">
           <span class="hud-label">SPD</span>
           <span id="hud-speed" class="hud-value">0</span>
           <span class="hud-unit">km/h</span>
+        </div>
+        <div class="hud-block">
+          <span class="hud-label">TIME</span>
+          <span id="hud-time" class="hud-value">0:00.00</span>
         </div>
         <div class="hud-block">
           <span class="hud-label">LAP</span>
@@ -26,6 +41,14 @@
           <span id="hud-pos" class="hud-value">1 / 4</span>
         </div>
       </div>
+      <div class="hud-board">
+        <table class="hud-lb" aria-label="Running order">
+          <thead>
+            <tr><th>#</th><th>Name</th><th>Laps</th></tr>
+          </thead>
+          <tbody id="hud-lb-body"></tbody>
+        </table>
+      </div>
       <div class="hud-radar">
         <canvas id="minimap" width="120" height="120"></canvas>
         <div class="hud-radar-caption">Overview</div>
@@ -35,7 +58,7 @@
 
     <div id="menu-main" class="screen">
       <h1>Low-fi Top-down Racer</h1>
-      <p class="tagline">Prototype — mechanics first</p>
+      <p class="tagline">Prototype — vehicle feel, racing lines, track projection, AI pacing</p>
       <button type="button" id="btn-start">Race</button>
       <button type="button" id="btn-how">Controls</button>
     </div>
@@ -69,14 +92,20 @@
       <ul class="how-list">
         <li><kbd>↑</kbd> <kbd>↓</kbd> or <kbd>W</kbd> <kbd>S</kbd> — accelerate / brake</li>
         <li><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> — steer</li>
-        <li><kbd>Esc</kbd> — quit to menu (after race)</li>
+        <li>Wait for the five red lights, then go when they switch off and “GO” appears.</li>
+        <li><kbd>Esc</kbd> — quit to menu</li>
       </ul>
       <button type="button" id="btn-how-back">Back</button>
     </div>
 
     <div id="menu-results" class="screen hidden">
       <h2 id="results-title">Race finished</h2>
-      <ol id="results-list"></ol>
+      <table class="results-table" id="results-table">
+        <thead>
+          <tr><th>Pos</th><th>Driver</th><th>Time</th></tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
       <button type="button" id="btn-results-menu">Menu</button>
     </div>
   </div>

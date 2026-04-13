@@ -53,16 +53,63 @@ export function drawWorld(ctx, track, view) {
   }
   ctx.stroke();
 
-  const p0 = track.points[0];
-  const p1 = track.points[1];
-  ctx.strokeStyle = "#e8c040";
-  ctx.lineWidth = 4 * px;
-  ctx.beginPath();
-  ctx.moveTo(p0.x - (p1.y - p0.y) * 0.06, p0.y + (p1.x - p0.x) * 0.06);
-  ctx.lineTo(p0.x + (p1.y - p0.y) * 0.06, p0.y - (p1.x - p0.x) * 0.06);
-  ctx.stroke();
+  drawStartLineChecker(ctx, track, px);
 
   ctx.restore();
+}
+
+/**
+ * Full-width checker pattern at segment 0 (classic start/finish).
+ * @param {number} px screen pixel size in world units (1/scale)
+ */
+function drawStartLineChecker(ctx, track, px) {
+  const { left, right } = buildEdges(track);
+  const L = left[0];
+  const R = right[0];
+  const p0 = track.points[0];
+  const p1 = track.points[1];
+  let tx = p1.x - p0.x;
+  let ty = p1.y - p0.y;
+  const tlen = Math.hypot(tx, ty) || 1;
+  tx /= tlen;
+  ty /= tlen;
+  const depth = 22 * px;
+  const nAcross = 16;
+  const nAlong = 4;
+  const ax = (R.x - L.x) / nAcross;
+  const ay = (R.y - L.y) / nAcross;
+  const dx = tx * (depth / nAlong);
+  const dy = ty * (depth / nAlong);
+  for (let row = 0; row < nAlong; row++) {
+    for (let col = 0; col < nAcross; col++) {
+      const parity = (row + col) % 2;
+      ctx.fillStyle = parity ? "#f2f2f2" : "#1a1a1a";
+      const x0 = L.x + ax * col + dx * row;
+      const y0 = L.y + ay * col + dy * row;
+      const x1 = x0 + ax;
+      const y1 = y0 + ay;
+      const x2 = x1 + dx;
+      const y2 = y1 + dy;
+      const x3 = x0 + dx;
+      const y3 = y0 + dy;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.strokeStyle = "#c9a227";
+  ctx.lineWidth = 2 * px;
+  ctx.beginPath();
+  ctx.moveTo(L.x, L.y);
+  ctx.lineTo(R.x, R.y);
+  ctx.lineTo(R.x + dx * nAlong, R.y + dy * nAlong);
+  ctx.lineTo(L.x + dx * nAlong, L.y + dy * nAlong);
+  ctx.closePath();
+  ctx.stroke();
 }
 
 /**
