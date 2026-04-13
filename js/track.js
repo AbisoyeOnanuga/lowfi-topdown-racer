@@ -1,62 +1,92 @@
 /**
  * Centerline polylines (closed loops). Width in world units.
- * Coordinates chosen so canvas 960x540 fits with margin when camera follows player.
  */
 
 function loop(points) {
   return points;
 }
 
+/**
+ * Closed CCW ellipse as a polyline (first point not duplicated at end).
+ * @param {number} segments vertices around the loop
+ */
+export function ellipsePoints(cx, cy, rx, ry, segments) {
+  const pts = [];
+  const n = Math.max(8, segments | 0);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
+  }
+  return pts;
+}
+
+/**
+ * Stadium: two straights (length `straightLen`) connected by semicircular ends of radius `R`.
+ * @param {number} arcSeg segments per semicircle
+ * @param {number} nStraight segments per straight
+ */
+export function stadiumPoints(cx, cy, straightLen, R, arcSeg, nStraight) {
+  const S = straightLen;
+  const pts = [];
+  const ns = Math.max(1, nStraight | 0);
+  const arc = Math.max(2, arcSeg | 0);
+
+  for (let k = 0; k <= ns; k++) {
+    pts.push({ x: cx - S / 2 + (k / ns) * S, y: cy + R });
+  }
+  for (let j = 1; j <= arc; j++) {
+    const a = Math.PI / 2 - (j / arc) * Math.PI;
+    pts.push({
+      x: cx + S / 2 + R * Math.cos(a),
+      y: cy + R * Math.sin(a),
+    });
+  }
+  for (let k = 1; k <= ns; k++) {
+    pts.push({ x: cx + S / 2 - (k / ns) * S, y: cy - R });
+  }
+  for (let j = 1; j <= arc; j++) {
+    const a = -Math.PI / 2 + (j / arc) * Math.PI;
+    pts.push({
+      x: cx - S / 2 + R * Math.cos(a),
+      y: cy + R * Math.sin(a),
+    });
+  }
+  if (pts.length >= 2) {
+    const a = pts[0];
+    const b = pts[pts.length - 1];
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 2) {
+      pts.pop();
+    }
+  }
+  return pts;
+}
+
 export const TRACKS = [
   {
     id: "oval",
     name: "Training Oval",
-    width: 100,
-    points: loop([
-      { x: 480, y: 120 },
-      { x: 720, y: 120 },
-      { x: 820, y: 270 },
-      { x: 720, y: 420 },
-      { x: 480, y: 420 },
-      { x: 240, y: 270 },
-    ]),
+    width: 152,
+    points: loop(ellipsePoints(720, 405, 430, 268, 28)),
   },
   {
     id: "switchback",
-    name: "Switchback",
-    width: 88,
-    points: loop([
-      { x: 200, y: 400 },
-      { x: 400, y: 400 },
-      { x: 520, y: 280 },
-      { x: 680, y: 400 },
-      { x: 780, y: 200 },
-      { x: 600, y: 120 },
-      { x: 400, y: 200 },
-      { x: 280, y: 120 },
-      { x: 120, y: 280 },
-    ]),
+    name: "Speedway",
+    width: 148,
+    points: loop(ellipsePoints(720, 405, 520, 218, 28)),
   },
   {
     id: "technical",
-    name: "Technical",
-    width: 82,
-    points: loop([
-      { x: 480, y: 100 },
-      { x: 700, y: 160 },
-      { x: 820, y: 320 },
-      { x: 720, y: 440 },
-      { x: 520, y: 380 },
-      { x: 400, y: 460 },
-      { x: 200, y: 380 },
-      { x: 140, y: 240 },
-      { x: 320, y: 140 },
-    ]),
+    name: "Ridge Circuit",
+    width: 142,
+    points: loop(stadiumPoints(720, 405, 520, 125, 16, 8)),
   },
 ];
 
 export function getTrack(id) {
-  return TRACKS.find((t) => t.id === id) ?? TRACKS[0];
+  let resolved = id;
+  if (id === "speedway") resolved = "switchback";
+  else if (id === "ridge") resolved = "technical";
+  return TRACKS.find((t) => t.id === resolved) ?? TRACKS[0];
 }
 
 /** Unit tangent and normal at vertex i (forward along loop). */
@@ -182,4 +212,36 @@ export function buildEdges(track) {
     right.push({ x: p.x - nx * w, y: p.y - ny * w });
   }
   return { left, right };
+}
+
+const BOUNDS_PAD = 40;
+
+/**
+ * Axis-aligned bounds from road edges plus padding (for camera / minimap).
+ * @param {typeof TRACKS[number]} track
+ */
+export function getWorldBounds(track) {
+  const { left, right } = buildEdges(track);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of left) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  for (const p of right) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  return {
+    minX: minX - BOUNDS_PAD,
+    minY: minY - BOUNDS_PAD,
+    maxX: maxX + BOUNDS_PAD,
+    maxY: maxY + BOUNDS_PAD,
+  };
 }

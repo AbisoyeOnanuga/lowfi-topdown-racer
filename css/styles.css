@@ -173,13 +173,27 @@ kbd {
   position: absolute;
   bottom: 8px;
   right: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   border: 1px solid #2a5080;
   border-radius: 4px;
   background: rgba(6, 10, 18, 0.8);
+  text-align: center;
 }
 
 #minimap {
   display: block;
+}
+
+.hud-radar-caption {
+  font-size: 0.55rem;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  padding: 2px 4px 4px;
+  max-width: 100%;
 }
 
 .hud-hint {

@@ -4,9 +4,11 @@ import {
   arcPosition,
   closestOnTrack,
   getTrack,
+  getWorldBounds,
   pointAtArc,
   trackLength,
 } from "./track.js";
+import { offTrackFactors } from "./physics.js";
 import { getVehicle } from "./vehicles.js";
 import { drawCar, drawMinimap, drawWorld } from "./render.js";
 
@@ -59,7 +61,8 @@ export class GameSession {
     this.raceTime = 0;
     this._lastTime = 0;
     this._running = false;
-    this._camera = { x: 0, y: 0 };
+    /** @type {{ scale: number, centerX: number, centerY: number }} */
+    this._view = { scale: 1, centerX: 0, centerY: 0 };
   }
 
   start() {
@@ -86,7 +89,22 @@ export class GameSession {
     this.raceTime = 0;
     this._lastTime = performance.now();
     this._running = true;
+    this._updateView();
     requestAnimationFrame((t) => this._loop(t));
+  }
+
+  _updateView() {
+    const b = getWorldBounds(this.track);
+    const bw = b.maxX - b.minX;
+    const bh = b.maxY - b.minY;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const scale = Math.min(w / bw, h / bh) * 0.98;
+    this._view = {
+      scale,
+      centerX: (b.minX + b.maxX) / 2,
+      centerY: (b.minY + b.maxY) / 2,
+    };
   }
 
   stop() {
@@ -134,16 +152,11 @@ export class GameSession {
 
   _step(dt) {
     const track = this.track;
-    const halfW = track.width * 0.5;
 
     for (let i = 0; i < this.cars.length; i++) {
       const car = this.cars[i];
-      let grip = 1;
       const close = closestOnTrack(track, car.x, car.y);
-      if (Math.abs(close.lateral) > halfW - 14) {
-        grip = 0.5;
-        car.speed *= 0.985;
-      }
+      const { grip, speedRetain } = offTrackFactors(track, close.lateral);
 
       if (car.isPlayer) {
         const ins = this.input;
@@ -163,6 +176,7 @@ export class GameSession {
         const aiIn = updateAI(car, track, dt, this.aiProfile);
         car.update(dt, aiIn, grip);
       }
+      car.speed *= speedRetain;
 
       const c2 = closestOnTrack(track, car.x, car.y);
       const s = arcPosition(track, c2.segIndex, c2.t);
@@ -185,11 +199,6 @@ export class GameSession {
       this.onFinish(results);
       return;
     }
-
-    const px = this.cars[0].x;
-    const py = this.cars[0].y;
-    this._camera.x += (px - this._camera.x) * 0.12;
-    this._camera.y += (py - this._camera.y) * 0.12;
 
     this._emitHud();
   }
@@ -249,9 +258,8 @@ export class GameSession {
     ctx.fillStyle = "#0d1117";
     ctx.fillRect(0, 0, w, h);
 
-    const camX = this._camera.x;
-    const camY = this._camera.y;
-    drawWorld(ctx, this.track, camX, camY);
+    const view = this._view;
+    drawWorld(ctx, this.track, view);
 
     const track = this.track;
     const total = trackLength(track);
@@ -272,12 +280,14 @@ export class GameSession {
       if (a.y !== b.y) return a.y - b.y;
       return a.x - b.x;
     });
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.scale(view.scale, view.scale);
+    ctx.translate(-view.centerX, -view.centerY);
     for (const car of sorted) {
-      ctx.save();
-      ctx.translate(w / 2 - camX, h / 2 - camY);
       drawCar(ctx, car, car === leader);
-      ctx.restore();
     }
+    ctx.restore();
 
     drawMinimap(this.minimap, this.track, this.cars);
   }

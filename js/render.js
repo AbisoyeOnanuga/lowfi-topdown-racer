@@ -1,16 +1,20 @@
-import { buildEdges } from "./track.js";
+import { buildEdges, getWorldBounds } from "./track.js";
 
 /**
  * @param {CanvasRenderingContext2D} ctx
  * @param {import('./track.js').Track} track
- * @param {number} camX
- * @param {number} camY
+ * @param {{ scale: number, centerX: number, centerY: number, screenPx?: number }} view
  */
-export function drawWorld(ctx, track, camX, camY) {
+export function drawWorld(ctx, track, view) {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
   ctx.save();
-  ctx.translate(w / 2 - camX, h / 2 - camY);
+  ctx.translate(w / 2, h / 2);
+  ctx.scale(view.scale, view.scale);
+  ctx.translate(-view.centerX, -view.centerY);
+
+  view.screenPx = 1 / view.scale;
+  const px = view.screenPx;
 
   const { left, right } = buildEdges(track);
   const n = left.length;
@@ -32,7 +36,7 @@ export function drawWorld(ctx, track, camX, camY) {
   }
 
   ctx.strokeStyle = "#4a9ee8";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * px;
   ctx.beginPath();
   ctx.moveTo(left[0].x, left[0].y);
   for (let i = 1; i <= n; i++) {
@@ -52,7 +56,7 @@ export function drawWorld(ctx, track, camX, camY) {
   const p0 = track.points[0];
   const p1 = track.points[1];
   ctx.strokeStyle = "#e8c040";
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 4 * px;
   ctx.beginPath();
   ctx.moveTo(p0.x - (p1.y - p0.y) * 0.06, p0.y + (p1.x - p0.x) * 0.06);
   ctx.lineTo(p0.x + (p1.y - p0.y) * 0.06, p0.y - (p1.x - p0.x) * 0.06);
@@ -98,19 +102,16 @@ export function drawMinimap(mini, track, cars) {
   mctx.fillStyle = "#0a0e14";
   mctx.fillRect(0, 0, mw, mh);
 
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
-  for (const p of track.points) {
-    minX = Math.min(minX, p.x);
-    minY = Math.min(minY, p.y);
-    maxX = Math.max(maxX, p.x);
-    maxY = Math.max(maxY, p.y);
-  }
+  const b = getWorldBounds(track);
+  const minX = b.minX;
+  const minY = b.minY;
+  const maxX = b.maxX;
+  const maxY = b.maxY;
   const pad = 20;
-  const sx = (mw - pad * 2) / (maxX - minX || 1);
-  const sy = (mh - pad * 2) / (maxY - minY || 1);
+  const bw = maxX - minX || 1;
+  const bh = maxY - minY || 1;
+  const sx = (mw - pad * 2) / bw;
+  const sy = (mh - pad * 2) / bh;
   const sc = Math.min(sx, sy);
 
   const tx = (x) => pad + (x - minX) * sc;
