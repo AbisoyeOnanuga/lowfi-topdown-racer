@@ -1,19 +1,34 @@
 /**
- * Gradual grip / speed loss when lateral exceeds the inner road margin.
- * Inner edge = halfRoad - 10; past that, effects ramp over ~88 world units.
+ * Off-track: grass/dirt saps speed and grip. Uses `dt` so decay is frame-rate independent.
  * @param {{ width: number }} track
  * @param {number} lateral signed lateral offset from centerline
+ * @param {number} dt frame delta seconds
  */
-export function offTrackFactors(track, lateral) {
+export function offTrackFactors(track, lateral, dt) {
   const halfRoad = track.width * 0.5;
-  const inner = halfRoad - 10;
+  const inner = halfRoad - 9;
   const absLat = Math.abs(lateral);
   if (absLat <= inner) {
-    return { grip: 1, speedRetain: 1 };
+    return { grip: 1, speedRetain: 1, speedCapMul: 1 };
   }
   const past = absLat - inner;
-  const u = Math.min(past / 88, 1);
-  const grip = Math.max(0.76, 1 - 0.22 * u * u);
-  const speedRetain = 1 - 0.0022 * u;
-  return { grip, speedRetain };
+  const u = Math.min(past / 52, 1);
+
+  /** Steering falls apart quickly in the dirt */
+  const grip = Math.max(0.28, 1 - 0.72 * Math.pow(u, 0.75));
+
+  /**
+   * Exponential speed bleed: v *= exp(-k * dt) each frame → exp(-k) per second at 60 Hz.
+   * k scales up sharply with u so deep off-track is punishing.
+   */
+  const k = 0.42 * u + 1.05 * u * u;
+  const speedRetain = Math.exp(-k * dt);
+
+  /**
+   * Hard ceiling on how fast tyres can push on loose surface (stops “full throttle in grass”).
+   * At max u, roughly 40% of car max speed.
+   */
+  const speedCapMul = 0.38 + 0.62 * (1 - u) * (1 - u);
+
+  return { grip, speedRetain, speedCapMul };
 }

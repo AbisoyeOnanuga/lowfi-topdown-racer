@@ -251,7 +251,11 @@ export class GameSession {
     for (let i = 0; i < this.cars.length; i++) {
       const car = this.cars[i];
       const close = closestOnTrack(track, car.x, car.y);
-      const { grip, speedRetain } = offTrackFactors(track, close.lateral);
+      const { grip, speedRetain, speedCapMul } = offTrackFactors(
+        track,
+        close.lateral,
+        dt
+      );
 
       if (car.isPlayer) {
         const ins = this.input;
@@ -272,6 +276,10 @@ export class GameSession {
         car.update(dt, aiIn, grip);
       }
       car.speed *= speedRetain;
+      const spdCap = car.vehicle.maxSpeed * speedCapMul;
+      if (Math.abs(car.speed) > spdCap) {
+        car.speed = Math.sign(car.speed) * spdCap;
+      }
 
       const c2 = closestOnTrack(track, car.x, car.y);
       const s = arcPosition(track, c2.segIndex, c2.t);
