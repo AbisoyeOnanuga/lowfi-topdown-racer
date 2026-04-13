@@ -27,12 +27,29 @@ export function createArcadeAudio() {
     muted = false;
   }
 
+  function masterLinear() {
+    if (muted) return 0;
+    const coarse =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(pointer: coarse)")?.matches;
+    return coarse ? 0.2 : 0.17;
+  }
+
   function ensure() {
     if (ctx) return;
     ctx = new AudioContext();
     master = ctx.createGain();
-    master.gain.value = muted ? 0 : 0.14;
+    master.gain.value = masterLinear();
     master.connect(ctx.destination);
+  }
+
+  /** Required on many mobile browsers after a tap / pointer event. */
+  async function resumeContext() {
+    ensure();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      await ctx.resume();
+    }
   }
 
   function getRumbleBuffer() {
@@ -110,15 +127,18 @@ export function createArcadeAudio() {
       } catch {
         /* ignore */
       }
-      if (master) master.gain.value = muted ? 0 : 0.14;
+      if (master) master.gain.value = masterLinear();
       return muted;
     },
+    resumeContext,
     playLightTick() {
       ensure();
+      void resumeContext();
       beep(520, 0.05, "square", 0.22);
     },
     playGo() {
       ensure();
+      void resumeContext();
       if (!ctx || !master) return;
       const t0 = ctx.currentTime;
       [440, 554, 659].forEach((f, i) => {
@@ -141,6 +161,7 @@ export function createArcadeAudio() {
      */
     setEngineFromSpeed(speedKmh, offTrack = 0) {
       ensure();
+      void resumeContext();
       if (!ctx || !master) return;
       const n = Math.min(1, Math.max(0, speedKmh / 420));
       const idle = 0.08;
@@ -156,12 +177,12 @@ export function createArcadeAudio() {
         engineOsc.type = "sawtooth";
         engineOsc.connect(engineGain);
         engineGain.connect(master);
-        engineGain.gain.value = muted ? 0 : 0.032 * eff * surfaceDuck;
+        engineGain.gain.value = muted ? 0 : 0.048 * eff * surfaceDuck;
         engineOsc.frequency.value = 48 + n * 98;
         engineOsc.start();
       } else {
         const targetFreq = 48 + n * 98;
-        const targetGain = muted ? 0 : 0.032 * eff * surfaceDuck;
+        const targetGain = muted ? 0 : 0.048 * eff * surfaceDuck;
         engineOsc.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.04);
         engineGain.gain.setTargetAtTime(targetGain, ctx.currentTime, 0.05);
       }
@@ -174,7 +195,7 @@ export function createArcadeAudio() {
       if (rumbleAmt > 0.002) {
         ensureRumbleChain();
         if (rumbleGain && rumbleFilter && ctx) {
-          const g = muted ? 0 : rumbleAmt * 0.11;
+          const g = muted ? 0 : rumbleAmt * 0.16;
           rumbleGain.gain.setTargetAtTime(g, ctx.currentTime, 0.06);
           rumbleFilter.frequency.setTargetAtTime(160 + ot * 140, ctx.currentTime, 0.08);
         }

@@ -19,6 +19,7 @@ const screens = {
 
 const app = el("app");
 const gameStage = el("game-stage");
+const gameScaleWrap = el("game-scale-wrap");
 const hud = el("hud");
 const canvas = el("game-canvas");
 const minimap = el("minimap");
@@ -44,8 +45,20 @@ let session = null;
 function syncLayout() {
   const stage = gameStage || app;
   if (!stage) return;
-  fitGameCanvases(stage, canvas, minimap);
+  fitGameCanvases(stage, canvas, minimap, gameScaleWrap);
   session?.resize();
+}
+
+/** iOS / Chrome require a user gesture before AudioContext runs. */
+function wireAudioUnlock() {
+  const unlock = () => {
+    void audio.resumeContext();
+  };
+  touchControls?.addEventListener("pointerdown", unlock, { passive: true });
+  gameStage?.addEventListener("pointerdown", unlock, { passive: true });
+  gameScaleWrap?.addEventListener("pointerdown", unlock, { passive: true });
+  canvas?.addEventListener("pointerdown", unlock, { passive: true });
+  window.addEventListener("keydown", unlock, { passive: true, once: true });
 }
 
 function updateHudHintMode() {
@@ -200,6 +213,7 @@ function startRace() {
   const laps = Number(el("input-laps").value) || 3;
 
   audio.ensure();
+  void audio.resumeContext();
   lastLightReds = 0;
   lastShowGo = false;
 
@@ -348,10 +362,13 @@ if (btnMute) {
   };
   syncMuteLabel();
   btnMute.addEventListener("click", () => {
+    void audio.resumeContext();
     audio.toggleMute();
     syncMuteLabel();
   });
 }
+
+wireAudioUnlock();
 
 window.addEventListener("keydown", onKeyDown);
 
