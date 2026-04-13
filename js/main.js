@@ -66,6 +66,10 @@ function bindHud(data) {
   el("hud-speed").textContent = String(data.hud.speed);
   el("hud-lap").textContent = data.hud.lapLabel;
   el("hud-pos").textContent = data.hud.posLabel;
+  const waitEl = el("hud-wait");
+  if (waitEl) {
+    waitEl.classList.toggle("hidden", !data.hud.waitingForField);
+  }
   const timeEl = el("hud-time");
   if (timeEl && data.hud.timeLabel != null) {
     timeEl.textContent = data.hud.timeLabel;

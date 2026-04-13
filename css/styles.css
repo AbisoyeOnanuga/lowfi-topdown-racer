@@ -314,6 +314,26 @@ kbd {
   text-align: right;
 }
 
+.hud-wait {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.5rem 1rem;
+  background: rgba(12, 20, 36, 0.88);
+  border: 1px solid #4a8ad0;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #a8d4ff;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.hud-wait.hidden {
+  display: none;
+}
+
 .hud-hint {
   position: absolute;
   bottom: 8px;

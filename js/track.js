@@ -1,6 +1,8 @@
 /**
  * Centerline polylines (closed loops). Width = full road width in world units.
- * Tracks use smooth sampling (arcs, Catmull–Rom, polar) — no overlapping geometry.
+ * Layouts take cues from classic top-down / arcade racers (short-oval stadium circuits,
+ * flowing GP-style linkages, tight hillclimb esses) — original geometry, no 1:1 copies.
+ * Smooth arcs + Catmull–Rom; no self-crossing loops.
  */
 
 function loop(points) {
@@ -93,23 +95,6 @@ function roundedRectLoop(cx, cy, halfW, halfH, cornerR, segStraight, segCorner) 
 }
 
 /**
- * Smooth polar loop: r = baseR + amp * sin(waves * θ). No crossings when amp < baseR / (waves+1) roughly.
- */
-function polarWavyLoop(cx, cy, baseR, amp, waves, nPts) {
-  const n = Math.max(64, nPts | 0);
-  const pts = [];
-  for (let i = 0; i < n; i++) {
-    const th = (i / n) * Math.PI * 2 - Math.PI / 2;
-    const rr = baseR + amp * Math.sin(waves * th);
-    pts.push({
-      x: cx + Math.cos(th) * rr,
-      y: cy + Math.sin(th) * rr,
-    });
-  }
-  return pts;
-}
-
-/**
  * Catmull–Rom segment between p1→p2 with neighbours p0,p3. t ∈ [0,1].
  */
 function catmull(p0, p1, p2, p3, t) {
@@ -152,47 +137,68 @@ export function catmullRomClosed(controls, samplesPerEdge) {
   return out;
 }
 
-/** Long, flowing GP: smooth spline through sparse hull — no sharp kinks */
-function ridgewaySmooth() {
+/**
+ * Flowing GP: long start straight, climb, fast esses, return — circuit-racer pacing.
+ */
+function trackHarborGp() {
   const hull = [
-    { x: 480, y: 900 },
-    { x: 820, y: 920 },
-    { x: 1180, y: 880 },
-    { x: 1500, y: 760 },
-    { x: 1680, y: 560 },
-    { x: 1720, y: 340 },
-    { x: 1540, y: 200 },
-    { x: 1180, y: 160 },
-    { x: 760, y: 180 },
-    { x: 420, y: 320 },
-    { x: 300, y: 520 },
-    { x: 360, y: 740 },
-    { x: 480, y: 900 },
+    { x: 340, y: 880 },
+    { x: 620, y: 900 },
+    { x: 960, y: 890 },
+    { x: 1320, y: 820 },
+    { x: 1560, y: 660 },
+    { x: 1660, y: 420 },
+    { x: 1520, y: 200 },
+    { x: 1180, y: 120 },
+    { x: 760, y: 140 },
+    { x: 420, y: 260 },
+    { x: 280, y: 480 },
+    { x: 360, y: 720 },
   ];
-  return catmullRomClosed(hull.slice(0, -1), 26);
+  return catmullRomClosed(hull, 28);
+}
+
+/**
+ * Tight hillclimb rhythm: switchbacks and a late hairpin — technical, readable corners.
+ */
+function trackSummitPass() {
+  const hull = [
+    { x: 560, y: 900 },
+    { x: 900, y: 880 },
+    { x: 1240, y: 760 },
+    { x: 1380, y: 520 },
+    { x: 1260, y: 280 },
+    { x: 960, y: 160 },
+    { x: 600, y: 200 },
+    { x: 360, y: 380 },
+    { x: 300, y: 600 },
+    { x: 420, y: 800 },
+  ];
+  return catmullRomClosed(hull, 30);
 }
 
 export const TRACKS = [
   {
     id: "oval",
-    name: "Arena Circuit",
+    name: "Short Track Oval",
     width: 152,
     points: loop(
-      roundedRectLoop(720, 405, 410, 250, 118, 14, 18)
+      roundedRectLoop(720, 405, 455, 228, 92, 18, 20)
     ),
   },
   {
     id: "switchback",
-    name: "Ribbon Course",
+    name: "Harbor GP",
     width: 148,
-    points: loop(polarWavyLoop(720, 405, 340, 105, 4, 160)),
+    boundsPad: 120,
+    points: loop(trackHarborGp()),
   },
   {
     id: "technical",
-    name: "Ridgeway Circuit",
+    name: "Summit Pass",
     width: 136,
-    boundsPad: 140,
-    points: loop(ridgewaySmooth()),
+    boundsPad: 130,
+    points: loop(trackSummitPass()),
   },
 ];
 

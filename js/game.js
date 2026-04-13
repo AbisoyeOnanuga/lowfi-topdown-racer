@@ -24,6 +24,9 @@ export const DIFFICULTY = {
 
 const AI_NAMES = ["Vector", "Raster", "Shader"];
 
+/** If the field never completes (stuck AI), end race and show partial results (seconds). */
+const MAX_RACE_DURATION = 540;
+
 /** Pre-race lights: sequential reds, hold, blackout + GO, then racing (seconds). */
 const LIGHTS_SEQ = 0.75;
 const LIGHTS_HOLD = 2.2;
@@ -207,6 +210,8 @@ export class GameSession {
   _hudPayload() {
     const playerLaps = this.lapCount[0] || 0;
     const curLap = Math.min(playerLaps + 1, this.lapsTotal);
+    const playerDone = this.finishTime[0] != null;
+    const allDone = this.cars.every((_, i) => this.finishTime[i] != null);
     const speedKmh = Math.round(Math.abs(this.cars[0].speed) * 0.42);
     const t =
       this._phase === "racing" || this._phase === "done"
@@ -214,9 +219,13 @@ export class GameSession {
         : 0;
     return {
       speed: speedKmh,
-      lapLabel: `${curLap} / ${this.lapsTotal}`,
+      lapLabel: playerDone
+        ? `Finished · ${this.lapsTotal} laps`
+        : `${curLap} / ${this.lapsTotal}`,
       posLabel: `${this.playerPlace} / ${this.cars.length}`,
       timeLabel: formatRaceTime(t),
+      waitingForField:
+        this._phase === "racing" && playerDone && !allDone,
       leaderboard: this._leaderboardRows(),
     };
   }
@@ -243,7 +252,7 @@ export class GameSession {
   }
 
   /**
-   * @returns {boolean} true if race just finished (player crossed line on final lap)
+   * @returns {boolean} true when session ends (entire field finished or time cap)
    */
   _step(dt) {
     const track = this.track;
@@ -257,20 +266,28 @@ export class GameSession {
         dt
       );
 
+      const alreadyDone = this.finishTime[i] != null;
+
       if (car.isPlayer) {
-        const ins = this.input;
-        const steer = ins.steer();
-        const accel = ins.accel();
-        const brake = ins.brake();
-        car.update(
-          dt,
-          {
-            accel: accel > 0 ? 1 : 0,
-            steer,
-            brake: brake > 0 ? 1 : 0,
-          },
-          grip
-        );
+        if (alreadyDone) {
+          car.update(dt, { accel: 0, steer: 0, brake: 1 }, 1);
+        } else {
+          const ins = this.input;
+          const steer = ins.steer();
+          const accel = ins.accel();
+          const brake = ins.brake();
+          car.update(
+            dt,
+            {
+              accel: accel > 0 ? 1 : 0,
+              steer,
+              brake: brake > 0 ? 1 : 0,
+            },
+            grip
+          );
+        }
+      } else if (alreadyDone) {
+        car.update(dt, { accel: 0, steer: 0, brake: 0.75 }, 1);
       } else {
         const aiIn = updateAI(car, track, dt, this.aiProfile);
         car.update(dt, aiIn, grip);
@@ -285,12 +302,14 @@ export class GameSession {
       const s = arcPosition(track, c2.segIndex, c2.t);
       const total = trackLength(track);
       const prev = this.prevArc[i];
-      if (prev !== undefined && prev > total * 0.72 && s < total * 0.28) {
+      if (
+        !alreadyDone &&
+        prev !== undefined &&
+        prev > total * 0.72 &&
+        s < total * 0.28
+      ) {
         this.lapCount[i] = (this.lapCount[i] || 0) + 1;
-        if (
-          this.lapCount[i] >= this.lapsTotal &&
-          this.finishTime[i] == null
-        ) {
+        if (this.lapCount[i] >= this.lapsTotal) {
           this.finishTime[i] = this.raceTime;
         }
       }
@@ -298,14 +317,15 @@ export class GameSession {
     }
 
     this._updatePlaces();
-    const playerLaps = this.lapCount[0] || 0;
-    if (!this.finished && playerLaps >= this.lapsTotal) {
+
+    const allFinished = this.cars.every((_, i) => this.finishTime[i] != null);
+    const hitTimeCap =
+      !this.finished && this.raceTime >= MAX_RACE_DURATION;
+
+    if (!this.finished && (allFinished || hitTimeCap)) {
       this.finished = true;
       this._phase = "done";
       this._running = false;
-      if (this.finishTime[0] == null) {
-        this.finishTime[0] = this.raceTime;
-      }
       const results = this._buildResults();
       this._emitHud();
       this.onFinish(results);
