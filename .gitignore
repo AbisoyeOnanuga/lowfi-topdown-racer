@@ -1,3 +1,3 @@
-node_modules/
-.DS_Store
-Thumbs.db
+# Local-only notes (keep on your machine; not published)
+AUTO_COMMIT.md
+ONLINE-POST.md

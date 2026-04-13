@@ -20,8 +20,6 @@ Then open the URL shown (port **8787**).
 
 The site works at the root of `https://<user>.github.io/<repo>/` because all asset paths are relative.
 
-## Writing
+## Cursor auto-commit (optional)
 
-- **`ONLINE-POST.md`** — paste-ready copy for social posts about learnings from building with AI.
-
-Optional: a Cursor **`stop`** hook in `.cursor/hooks.json` runs `node .cursor/hooks/auto-commit-stop.mjs` after an agent session (remove that hook to disable).
+This repo can **commit after each agent session** via `.cursor/hooks.json` → `stop` → `node .cursor/hooks/auto-commit-stop.mjs`. Remove or edit that hook to disable. It runs when the **agent turn ends**, not on every chat message.
