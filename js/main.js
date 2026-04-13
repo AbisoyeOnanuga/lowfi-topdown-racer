@@ -18,6 +18,7 @@ const screens = {
 };
 
 const app = el("app");
+const gameStage = el("game-stage");
 const hud = el("hud");
 const canvas = el("game-canvas");
 const minimap = el("minimap");
@@ -41,8 +42,9 @@ let detachTouch = null;
 let session = null;
 
 function syncLayout() {
-  if (!app) return;
-  fitGameCanvases(app, canvas, minimap);
+  const stage = gameStage || app;
+  if (!stage) return;
+  fitGameCanvases(stage, canvas, minimap);
   session?.resize();
 }
 
@@ -105,6 +107,7 @@ function quitToMenu() {
   }
   hud.classList.remove("touch-mode");
   document.body.classList.remove("race-active");
+  if (app) app.classList.remove("app--racing");
   audio.stopEngine();
   lastLightReds = 0;
   lastShowGo = false;
@@ -211,6 +214,7 @@ function startRace() {
   hud.classList.remove("hidden");
   if (useTouchUi) hud.classList.add("touch-mode");
   document.body.classList.add("race-active");
+  if (app) app.classList.add("app--racing");
   startSeq.classList.remove("hidden");
   for (const L of lightEls()) L.classList.remove("on");
   startGo.classList.add("hidden");
@@ -248,6 +252,7 @@ function startRace() {
       }
       hud.classList.remove("touch-mode");
       document.body.classList.remove("race-active");
+      if (app) app.classList.remove("app--racing");
       audio.stopEngine();
       hideStartSequence();
       lastLightReds = 0;

@@ -23,9 +23,13 @@ body {
 body.race-active {
   overflow: hidden;
   touch-action: none;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
-/* Letterboxed 16:9 view — works in portrait (narrow) or landscape (wider track area). */
+/* Menus: letterboxed 16:9. Racing: full-viewport column — stage + separate touch bar (no overlap). */
 #app.arcade-cab {
   position: relative;
   width: min(100vw - 8px, calc(100dvh * 16 / 9 - 8px));
@@ -37,7 +41,32 @@ body.race-active {
     0 8px 32px rgba(0, 0, 0, 0.65);
 }
 
-#app.arcade-cab::after {
+#app.arcade-cab.app--racing {
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
+  height: 100svh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: none;
+}
+
+.game-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+#app.app--racing .game-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.game-stage::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -55,6 +84,8 @@ body.race-active {
 
 #game-canvas {
   display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   background: #0d1117;
@@ -103,7 +134,7 @@ body.race-active {
 .screen {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -180,15 +211,23 @@ h2 {
   line-height: 1.35;
 }
 
-.audio-mute {
+/* Audio only while racing — top-right of viewport area above the touch strip. */
+#app.app--racing .audio-mute {
+  display: block;
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  z-index: 25;
-  font-size: 0.72rem;
-  padding: 0.3rem 0.55rem;
-  opacity: 0.85;
+  top: max(6px, env(safe-area-inset-top));
+  right: max(6px, env(safe-area-inset-right));
+  bottom: auto;
+  left: auto;
+  z-index: 35;
+  font-size: 0.65rem;
+  padding: 0.25rem 0.45rem;
+  opacity: 0.9;
   pointer-events: auto;
+}
+
+#app:not(.app--racing) .audio-mute {
+  display: none;
 }
 
 label {
@@ -482,16 +521,6 @@ kbd {
   display: none;
 }
 
-.hud.touch-mode .hud-hint {
-  bottom: 96px;
-  max-width: min(85%, 18rem);
-}
-
-/* Keep minimap above thumb controls (bottom clusters are ~88–120px). */
-.hud.touch-mode .hud-radar {
-  bottom: 104px;
-}
-
 .hud-hint {
   position: absolute;
   bottom: 8px;
@@ -518,32 +547,27 @@ kbd {
 }
 
 .touch-controls {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 22;
   display: none;
+  position: relative;
+  z-index: 20;
+  flex: 0 0 auto;
   flex-direction: row;
   justify-content: space-between;
   align-items: stretch;
-  gap: 12px;
-  padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+  gap: 10px;
+  padding: 6px 10px max(8px, env(safe-area-inset-bottom));
   pointer-events: auto;
   touch-action: none;
-  background: linear-gradient(
-    0deg,
-    rgba(4, 8, 14, 0.82) 0%,
-    rgba(4, 8, 14, 0.2) 100%
-  );
+  background: #0a1018;
+  border-top: 1px solid #2a5080;
 }
 
-.touch-controls.active {
+#app.app--racing .touch-controls.active {
   display: flex;
 }
 
 @media (pointer: fine) and (min-width: 900px) {
-  .touch-controls.active {
+  #app.app--racing .touch-controls.active {
     display: none;
   }
 }
@@ -591,16 +615,57 @@ kbd {
 
 .touch-pedal {
   min-width: 4.25rem;
-  min-height: 4rem;
+  min-height: 3.25rem;
 }
 
 @media (max-width: 420px) {
   .touch-btn {
-    min-width: 3.25rem;
-    min-height: 2.85rem;
+    min-width: 3rem;
+    min-height: 2.6rem;
   }
   .touch-pedal {
-    min-width: 3.75rem;
-    min-height: 3.5rem;
+    min-width: 3.4rem;
+    min-height: 2.75rem;
+  }
+}
+
+/* Narrow / mobile: keep leaderboard + minimap in corners, not over the track center. */
+@media (max-width: 900px) {
+  .hud-top {
+    gap: 0.35rem;
+    max-width: calc(100% - 5.5rem);
+    padding: 0 0.25rem;
+  }
+
+  .hud-block {
+    font-size: 0.68rem;
+    padding: 0.22rem 0.45rem;
+  }
+
+  .hud-board {
+    top: 40px;
+    left: 4px;
+    right: auto;
+    max-width: min(130px, 32vw);
+    font-size: 0.58rem;
+    padding: 3px 4px;
+  }
+
+  .hud-radar {
+    top: auto;
+    bottom: 6px;
+    left: 6px;
+    right: auto;
+  }
+
+  .hud-quit {
+    font-size: 0.65rem;
+    padding: 0.28rem 0.45rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .hud-hint {
+    display: none !important;
   }
 }

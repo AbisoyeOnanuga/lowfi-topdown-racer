@@ -9,6 +9,7 @@
 </head>
 <body>
   <div id="app" class="arcade-cab">
+    <div id="game-stage" class="game-stage">
     <canvas id="game-canvas" width="960" height="540"></canvas>
 
     <p id="rotate-hint" class="rotate-hint hidden" role="status">
@@ -66,6 +67,10 @@
         <span class="hud-hint-touch hidden">Steer · gas · brake — on-screen (bottom)</span>
       </div>
     </div>
+
+    </div>
+
+    <button type="button" id="btn-audio-mute" class="audio-mute" aria-pressed="false" title="Toggle synthesized audio">Audio: on</button>
 
     <div id="touch-controls" class="touch-controls" aria-hidden="true">
       <div class="touch-cluster touch-cluster--steer">
@@ -136,7 +141,6 @@
       <button type="button" id="btn-results-menu">Menu</button>
     </div>
 
-    <button type="button" id="btn-audio-mute" class="audio-mute" aria-pressed="false" title="Toggle synthesized audio">Audio: on</button>
   </div>
 
   <script type="module" src="js/main.js"></script>
